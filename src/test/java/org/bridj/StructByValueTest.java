@@ -40,7 +40,7 @@ import org.bridj.dyncall.DyncallLibrary.DCstruct;
 import org.junit.Ignore;
 import org.junit.Test;
 
-@Ignore
+//@Ignore
 @Library("test")
 public class StructByValueTest {
     static {
@@ -93,11 +93,28 @@ public class StructByValueTest {
         @Array(10)
         public Pointer<Long> a;
     }
+    public static class S_bare_interval extends StructObject {
+        @Field(0)
+        public double inf;
+        @Field(1)
+        public double sup;
+    }
+    public static class S_decorated_interval extends StructObject {
+        @Field(0)
+        public double inf;
+        @Field(1)
+        public double sup;
+        @Field(2)
+        public byte dec;
+    }
+    private static byte COM = 20; // IEEE 1788 decoration COM
     
     public static native int incr(S_int s);
     public static native long sum(S_int2 s);
     public static native long sum(S_jlong4 s);
     public static native long sum(S_jlong10 s);
+    public static native double sup_b(S_bare_interval x);
+    public static native double sup_d(S_decorated_interval x);
 	
 //    @Test
 //    public void testSimpleStruct() {
@@ -117,7 +134,7 @@ public class StructByValueTest {
 //        }
 //    }
             
-    
+
     @Test
     public void testStructSizes() {
         if (!BridJ.Switch.StructsByValue.enabled)
@@ -128,7 +145,6 @@ public class StructByValueTest {
         assertNotNull(struct);
     }
     
-    //@Ignore
     @Test
     public void testIncrInt() {
         if (!BridJ.Switch.StructsByValue.enabled)
@@ -141,14 +157,11 @@ public class StructByValueTest {
         assertEquals(value + 1, incr(s));
     }
     
-    
-    @Ignore
     @Test
     public void testIncrLong4() {
         if (!BridJ.Switch.StructsByValue.enabled)
             return;
         
-        long value = 12345;
         S_jlong4 s = new S_jlong4();
         s.a = 10;
         s.b = 100;
@@ -172,5 +185,30 @@ public class StructByValueTest {
         }
         BridJ.writeToNative(s);
         assertEquals(tot, sum(s));
+    }
+    
+    @Test
+    public void testSup_b() {
+        if (!BridJ.Switch.StructsByValue.enabled)
+            return;
+        
+        S_bare_interval x = new S_bare_interval();
+        x.inf = 5.0;
+        x.sup = 6.0;
+        BridJ.writeToNative(x);
+        assertEquals(x.sup, sup_b(x), 0.0);
+    }
+    
+    @Test
+    public void testSup_d() {
+        if (!BridJ.Switch.StructsByValue.enabled)
+            return;
+        
+        S_decorated_interval x = new S_decorated_interval();
+        x.inf = 5.0;
+        x.sup = 6.0;
+        x.dec = COM;
+        BridJ.writeToNative(x);
+        assertEquals(x.sup, sup_d(x), 0.0);
     }
 }

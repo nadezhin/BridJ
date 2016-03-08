@@ -1,6 +1,105 @@
-diff -r 3e629dc19168 dynload/dynload_syms_mach-o.c
---- a/dynload/dynload_syms_mach-o.c	Thu Mar 19 22:24:28 2015 +0100
-+++ b/dynload/dynload_syms_mach-o.c	Sat Mar 21 11:08:07 2015 +0000
+diff -r 33c333ec5ad2 dyncall/dyncall_callvm_x64.c
+--- a/dyncall/dyncall_callvm_x64.c	Sun Mar 06 23:30:44 2016 +0100
++++ b/dyncall/dyncall_callvm_x64.c	Tue Mar 08 15:36:04 2016 +0300
+@@ -31,7 +31,9 @@
+ 
+ #include "dyncall_callvm_x64.h"
+ #include "dyncall_alloc.h"
++#include "dyncall_signature.h"
+ #include "dyncall_struct.h"
++#include <string.h>
+ 
+ static DCCallVM* dc_callvm_new_x64(DCCallVM_vt* vt, DCsize size)
+ {
+@@ -156,8 +158,66 @@
+     dcVecAppend(&self->mVecHead, &x, sizeof(DCpointer));
+ }
+ 
++// >= 0 n-th bit of bitmask means that n-th byte of structure is in INT field
++static int classify_struct_x64(DCstruct* s) {
++  DCsize i, j;
++  int bitmask = 0, submask;
++  for (i = 0; i < s->fieldCount; i++) {
++    DCfield *f = s->pFields + i;
++    for (j = 0; j < f->arrayLength; j++) {
++      int offset = f->offset + j*f->size;
++      switch (f->type) {
++      case DC_SIGCHAR_FLOAT:
++      case DC_SIGCHAR_DOUBLE:
++	break;
++      case DC_SIGCHAR_STRUCT:
++	submask = classify_struct_x64(f->pSubStruct);
++	bitmask |= (submask << offset);
++	break;
++      default:
++	submask = (1 << f->size) - 1;
++	bitmask  |= (submask << offset);
++      }
++    }
++  }
++  return bitmask;
++}
++
+ static void dc_callvm_argStruct_x64(DCCallVM* in_self, DCstruct* s, DCpointer x)
+ {
++  DCsize i, bitmask;
++  DCCallVM_x64* self = (DCCallVM_x64*)in_self;
++  /*printf("dc_callvm_argStruct_x64 size = %d\n", (int)s->size);@@@*/
++  if (s->size > 16) {
++    dcVecAppend(&self->mVecHead, x, s->size);
++    self->mVecHead.mSize = (self->mVecHead.mSize + 7) & -8; // align to octobyte
++    return;
++  }
++  
++  // Avoid accessig bytes out of struct
++  DClonglong buf[2] = {0, 0};
++  memcpy(buf, x, s->size);
++  
++  bitmask = classify_struct_x64(s);
++  for (int i = 0; i*8 < s->size; i++) {
++    if (((bitmask >> (i*8)) & 0xff) != 0) {
++      // INTEGER class
++      if(self->mRegCount.i < numIntRegs)
++	self->mRegData.i[self->mRegCount.i++] = buf[i];
++      else
++	dcVecAppend(&self->mVecHead, &buf[i], sizeof(DClonglong));
++    } else {
++      // SSE class
++      if(self->mRegCount.f < numFloatRegs)
++	*(DClonglong*)&self->mRegData.f[self->mRegCount.f++] = buf[i];
++      else
++	dcVecAppend(&self->mVecHead, &buf[i], sizeof(DCdouble));
++    }
++  }
++}
++
++static void dc_callvm_argStruct_x64_old(DCCallVM* in_self, DCstruct* s, DCpointer x)
++{
+   DCCallVM_x64* self = (DCCallVM_x64*)in_self;
+   dcVecAppend(&self->mVecHead, x, s->size);
+   /*printf("dc_callvm_argStruct_x64 size = %d\n", (int)s->size);@@@*/
+@@ -167,7 +227,6 @@
+   /*	  dcVecAppend(&self->mVecHead, &x, sizeof(DCpointer));@@@*/
+ }
+ 
+-
+ /* Call. */
+ void dc_callvm_call_x64(DCCallVM* in_self, DCpointer target)
+ {
+diff -r 33c333ec5ad2 dyncall/dyncall_struct.c
+--- a/dyncall/dyncall_struct.c	Sun Mar 06 23:30:44 2016 +0100
++++ b/dyncall/dyncall_struct.c	Tue Mar 08 15:36:04 2016 +0300
+@@ -130,6 +130,7 @@
+ 	for (i = 0; i < s->fieldCount; i++) {
+ 		DCfield *f = s->pFields + i;
+ 		dcAlign(&s->size, f->alignment);
++		f->offset = s->size;
+ 		s->size += f->size;
+ 	}
+ 	dcAlign(&s->size, s->alignment);
+diff -r 33c333ec5ad2 dynload/dynload_syms_mach-o.c
+--- a/dynload/dynload_syms_mach-o.c	Sun Mar 06 23:30:44 2016 +0100
++++ b/dynload/dynload_syms_mach-o.c	Tue Mar 08 15:36:04 2016 +0300
 @@ -29,6 +29,7 @@
   dynamic symbol resolver for Mach-O
  
@@ -298,9 +397,9 @@ diff -r 3e629dc19168 dynload/dynload_syms_mach-o.c
  	const struct NLIST_TYPE* nl = get_nlist(pSyms, index);
  	if (!nl)
  		return NULL;
-diff -r 3e629dc19168 dynload/dynload_unix.c
---- a/dynload/dynload_unix.c	Thu Mar 19 22:24:28 2015 +0100
-+++ b/dynload/dynload_unix.c	Sat Mar 21 11:08:07 2015 +0000
+diff -r 33c333ec5ad2 dynload/dynload_unix.c
+--- a/dynload/dynload_unix.c	Sun Mar 06 23:30:44 2016 +0100
++++ b/dynload/dynload_unix.c	Tue Mar 08 15:36:04 2016 +0300
 @@ -41,7 +41,7 @@
  
  DLLib* dlLoadLibrary(const char* libPath)
@@ -310,9 +409,9 @@ diff -r 3e629dc19168 dynload/dynload_unix.c
  }
  
  
-diff -r 3e629dc19168 dynload/dynload_windows.c
---- a/dynload/dynload_windows.c	Thu Mar 19 22:24:28 2015 +0100
-+++ b/dynload/dynload_windows.c	Sat Mar 21 11:08:07 2015 +0000
+diff -r 33c333ec5ad2 dynload/dynload_windows.c
+--- a/dynload/dynload_windows.c	Sun Mar 06 23:30:44 2016 +0100
++++ b/dynload/dynload_windows.c	Tue Mar 08 15:36:04 2016 +0300
 @@ -41,7 +41,9 @@
  DLLib* dlLoadLibrary(const char* libPath)
  {

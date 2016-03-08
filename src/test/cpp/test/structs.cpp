@@ -57,6 +57,15 @@ struct S_jlong10 {
 	jlong a[10];	
 };
 
+struct S_bare_interval {
+	double inf, sup;
+};
+
+struct S_decorated_interval {
+	double inf, sup;
+        char dec;
+};
+
 TEST_API jint incr(S_int s) {
 	return s.a + 1;
 }
@@ -72,4 +81,9 @@ TEST_API jlong sum(S_jlong10 s) {
 		tot += s.a[i];
 	return tot;
 }
-
+TEST_API double sup_b(struct S_bare_interval x) {
+    return x.sup;
+}
+TEST_API double sup_d(struct S_decorated_interval x) {
+    return x.sup;
+}
