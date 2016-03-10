@@ -87,10 +87,11 @@ class DyncallStructs {
     protected static void fillDCstruct(Type structType, Pointer<DCstruct> struct, List<StructFieldDescription> aggregatedFields) {
         for (StructFieldDescription aggregatedField : aggregatedFields) {
             StructFieldDeclaration field = aggregatedField.aggregatedFields.get(0);
-            Type fieldType = field.desc.nativeTypeOrPointerTargetType;
-            if (fieldType == null) {
-                fieldType = field.desc.valueType;
-            }
+            Type fieldType = field.desc.isArray ? field.desc.nativeTypeOrPointerTargetType : field.desc.valueType;
+//            Type fieldType = field.desc.nativeTypeOrPointerTargetType;
+//            if (fieldType == null) {
+//                fieldType = field.desc.valueType;
+//            }
             Class<?> fieldClass = Utils.getClass(fieldType);
 
             int alignment = toDCAlignment(aggregatedField.alignment);
@@ -108,7 +109,7 @@ class DyncallStructs {
                 }
             } else {
                 int dctype;
-                if (fieldClass == int.class) {
+                if (fieldClass == int.class || fieldClass == Integer.class || IntValuedEnum.class.isAssignableFrom(fieldClass)) {
                     dctype = DC_SIGCHAR_INT;
                 } else if (fieldClass == long.class || fieldClass == Long.class) {
                     // TODO handle weird cases
@@ -126,7 +127,6 @@ class DyncallStructs {
                 } else {
                     throw new IllegalArgumentException("Unable to create dyncall struct field for type " + Utils.toString(fieldType) + " in struct " + Utils.toString(structType));
                 }
-
                 dcStructField(struct, dctype, alignment, arrayLength);
             }
         }

@@ -199,16 +199,25 @@ jboolean followArgs(CallTempStruct* call, DCArgs* args, int nTypes, ValueType* p
 			case eNativeObjectValue: {
 				jobject callIO = call && call->pCallIOs ? *(call->pCallIOs++) : NULL;
 				DCstruct* s = getStructFromIO(env, callIO);
-				void* pStruct = getNativeObjectPointerWithIO(env, dcbArgPointer(args), callIO);
 				if (!s) {
 					throwException(env, "Failed to get low-level struct representation !");
 					return JNI_FALSE;
 				}
-				if (!pStruct) {
-					throwException(env, "Struct by value cannot be null !");
+				void* pStruct;
+                                if (flags & CALLING_JAVA)
+                                {
+                                    void *ptr = dcbArgStruct(args, s);
+                                    ptr = createPointerFromIO(env, ptr, callIO);
+                                    addTempCallLocalRef(call, ptr);
+                                    dcArgPointer(call->vm, ptr);
+                                } else {
+                                    pStruct = getNativeObjectPointerWithIO(env, dcbArgPointer(args), callIO);
+                                    if (!pStruct) {
+                                       	throwException(env, "Struct by value cannot be null !");
 					return JNI_FALSE;
-				}
-				dcArgStruct(call->vm, s, pStruct);
+                                    }
+                                    dcArgStruct(call->vm, s, pStruct);
+                                }
 				break;
 			}	
 			case eEllipsis: {

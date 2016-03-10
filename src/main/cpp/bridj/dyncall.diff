@@ -1,6 +1,6 @@
 diff -r 33c333ec5ad2 dyncall/dyncall_callvm_x64.c
 --- a/dyncall/dyncall_callvm_x64.c	Sun Mar 06 23:30:44 2016 +0100
-+++ b/dyncall/dyncall_callvm_x64.c	Tue Mar 08 15:36:04 2016 +0300
++++ b/dyncall/dyncall_callvm_x64.c	Thu Mar 10 14:49:05 2016 +0300
 @@ -31,7 +31,9 @@
  
  #include "dyncall_callvm_x64.h"
@@ -88,7 +88,7 @@ diff -r 33c333ec5ad2 dyncall/dyncall_callvm_x64.c
  {
 diff -r 33c333ec5ad2 dyncall/dyncall_struct.c
 --- a/dyncall/dyncall_struct.c	Sun Mar 06 23:30:44 2016 +0100
-+++ b/dyncall/dyncall_struct.c	Tue Mar 08 15:36:04 2016 +0300
++++ b/dyncall/dyncall_struct.c	Thu Mar 10 14:49:05 2016 +0300
 @@ -130,6 +130,7 @@
  	for (i = 0; i < s->fieldCount; i++) {
  		DCfield *f = s->pFields + i;
@@ -97,9 +97,48 @@ diff -r 33c333ec5ad2 dyncall/dyncall_struct.c
  		s->size += f->size;
  	}
  	dcAlign(&s->size, s->alignment);
+diff -r 33c333ec5ad2 dyncallback/dyncall_args.h
+--- a/dyncallback/dyncall_args.h	Sun Mar 06 23:30:44 2016 +0100
++++ b/dyncallback/dyncall_args.h	Thu Mar 10 14:49:05 2016 +0300
+@@ -58,6 +58,7 @@
+ DC_API DCfloat     dcbArgFloat    (DCArgs*);
+ DC_API DCdouble    dcbArgDouble   (DCArgs*);
+ DC_API DCpointer   dcbArgPointer  (DCArgs*);
++DC_API DCpointer   dcbArgStruct   (DCArgs*, DCstruct* s);
+ 
+ #ifdef __cplusplus
+ }
+diff -r 33c333ec5ad2 dyncallback/dyncall_args_x64.c
+--- a/dyncallback/dyncall_args_x64.c	Sun Mar 06 23:30:44 2016 +0100
++++ b/dyncallback/dyncall_args_x64.c	Thu Mar 10 14:49:05 2016 +0300
+@@ -26,6 +26,8 @@
+ 
+ 
+ #include "dyncall_args_x64.h"
++#include "dyncall_struct.h"
++#include <stdio.h>
+ 
+ 
+ static int64* arg_i64(DCArgs* args)
+@@ -69,6 +71,15 @@
+ 
+ 
+ DCpointer   dcbArgPointer  (DCArgs* p) { return (DCpointer)   dcbArgLongLong(p); }
++DCpointer   dcbArgStruct   (DCArgs* p, DCstruct* s)
++{ 
++  if (s->size <= 16) {
++    printf("dcbArgStruct s->size=%d\n", s->size);
++  }
++  DCpointer r = p->stack_ptr;
++  p->stack_ptr += ((s->size + 7) >> 3); // align
++  return r;
++}
+ 
+ DCdouble    dcbArgDouble   (DCArgs* p) { return *arg_f64(p); }
+ DCfloat     dcbArgFloat    (DCArgs* p) { return *(float*)arg_f64(p); }
 diff -r 33c333ec5ad2 dynload/dynload_syms_mach-o.c
 --- a/dynload/dynload_syms_mach-o.c	Sun Mar 06 23:30:44 2016 +0100
-+++ b/dynload/dynload_syms_mach-o.c	Tue Mar 08 15:36:04 2016 +0300
++++ b/dynload/dynload_syms_mach-o.c	Thu Mar 10 14:49:05 2016 +0300
 @@ -29,6 +29,7 @@
   dynamic symbol resolver for Mach-O
  
@@ -399,7 +438,7 @@ diff -r 33c333ec5ad2 dynload/dynload_syms_mach-o.c
  		return NULL;
 diff -r 33c333ec5ad2 dynload/dynload_unix.c
 --- a/dynload/dynload_unix.c	Sun Mar 06 23:30:44 2016 +0100
-+++ b/dynload/dynload_unix.c	Tue Mar 08 15:36:04 2016 +0300
++++ b/dynload/dynload_unix.c	Thu Mar 10 14:49:05 2016 +0300
 @@ -41,7 +41,7 @@
  
  DLLib* dlLoadLibrary(const char* libPath)
@@ -411,7 +450,7 @@ diff -r 33c333ec5ad2 dynload/dynload_unix.c
  
 diff -r 33c333ec5ad2 dynload/dynload_windows.c
 --- a/dynload/dynload_windows.c	Sun Mar 06 23:30:44 2016 +0100
-+++ b/dynload/dynload_windows.c	Tue Mar 08 15:36:04 2016 +0300
++++ b/dynload/dynload_windows.c	Thu Mar 10 14:49:05 2016 +0300
 @@ -41,7 +41,9 @@
  DLLib* dlLoadLibrary(const char* libPath)
  {
