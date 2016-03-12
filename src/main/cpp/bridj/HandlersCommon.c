@@ -31,9 +31,36 @@
 #include "HandlersCommon.h"
 #include "JNI.h"
 #include "Errors.h"
+#include <malloc.h>
 
 jboolean callFunction(CallTempStruct* call, CommonCallbackInfo* info, DCArgs* args, DCValue* result, void* callback, CallFlags flags)
 {
+  if (info->fReturnType == eNativeObjectValue) {
+    JNIEnv* env = call->env;
+    if (flags & CALLING_JAVA) {
+	throwException(env, "Callback returning structure is not supported yet !");
+	return JNI_FALSE;
+    }
+    jobject* pCallIOs = call->pCallIOs;
+    int iParam;
+    for (iParam = 0; iParam < info->nParams; iParam++) {
+        ValueType type = info->fParamTypes[iParam];
+        switch (type) {
+            case eIntFlagSet:
+            case ePointerValue:
+            case eNativeObjectValue:
+                pCallIOs++;
+                break;
+        }
+    }
+    DCstruct* s = getStructFromIO(env, *pCallIOs);
+    if (!s) {
+	throwException(env, "Failed to get low-level struct representation !");
+	return JNI_FALSE;
+    }
+    result->p = malloc(dcStructSize(s));
+    dcRetStruct(call->vm, s, result->p);
+  }
   return 
     followArgs(call, args, info->nParams, info->fParamTypes, flags) 
     &&
@@ -377,6 +404,22 @@ jboolean followCall(CallTempStruct* call, ValueType returnType, DCValue* result,
 			}
 			GET_LAST_ERROR();
 			break;
+		case eNativeObjectValue: {
+                        dcCallStruct(call->vm, callback);
+                        GET_LAST_ERROR();
+			jobject callIO = call && call->pCallIOs ? *(call->pCallIOs++) : NULL;
+//			DCstruct* s = getStructFromIO(env, callIO);
+//			if (!s) {
+//				throwException(env, "Failed to get low-level struct representation !");
+//				return JNI_FALSE;
+//			}
+                        if (flags & CALLING_JAVA) {
+                            throwException(env, "Callback returning structure is not supported yet !");
+                            return JNI_FALSE;
+                        }
+                        result->p = createPointerFromIO(env, result->p, callIO);
+                        }
+                        break;	
 		default:
 			if (flags & FORCE_VOID_RETURN) 
 			{

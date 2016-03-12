@@ -456,7 +456,8 @@ public class MethodCallInfo {
                     BridJ.error("Unable to create low-level struct metadata for " + Utils.toString(t) + " : won't be able to use it as a by-value function argument.", th);
                 }
             }
-            addCallIO(new CallIO.NativeObjectHandler((Class<? extends NativeObject>) c, t, pStruct));
+            Pointer.Releaser releaser = iParam < 0 ? Pointer.freeReleaser : null;
+            addCallIO(new CallIO.NativeObjectHandler((Class<? extends NativeObject>) c, t, pStruct, releaser));
             direct = false;
             return ValueType.eNativeObjectValue;
         }

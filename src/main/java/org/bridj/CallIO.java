@@ -124,17 +124,23 @@ interface CallIO {
         final Class<? extends NativeObject> nativeClass;
         final Type nativeType;
         final Pointer<DCstruct> pStruct;
+        final Pointer.Releaser releaser;
 
-        public NativeObjectHandler(Class<? extends NativeObject> type, Type t, Pointer<DCstruct> pStruct) {
+        public NativeObjectHandler(Class<? extends NativeObject> type, Type t, Pointer<DCstruct> pStruct, Pointer.Releaser releaser) {
             this.nativeClass = type;
             this.nativeType = t;
             this.pStruct = pStruct;
+            this.releaser = releaser;
         }
         //@Override
 
         @SuppressWarnings("deprecation")
         public NativeObject newInstance(long address) {
-            return Pointer.pointerToAddress(address).getNativeObject(nativeClass);
+            if (releaser != null) {
+                return Pointer.pointerToAddress(address, releaser).getNativeObject(nativeClass);
+            } else {
+                return Pointer.pointerToAddress(address).getNativeObject(nativeClass);
+            }
         }
 
         public long getDCStruct() {

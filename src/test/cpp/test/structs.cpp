@@ -87,3 +87,17 @@ TEST_API double sup_b(struct S_bare_interval x) {
 TEST_API double sup_d(struct S_decorated_interval x) {
     return x.sup;
 }
+TEST_API struct S_bare_interval neg_b(struct S_bare_interval x) {
+    struct S_bare_interval ret;
+    ret.inf = -x.sup;
+    ret.sup = -x.inf;
+    return ret;
+}
+TEST_API struct S_decorated_interval neg_d(struct S_decorated_interval x) {
+    struct S_decorated_interval ret;
+    ret.inf = -x.sup;
+    ret.sup = -x.inf;
+    ret.dec = x.dec;
+    return ret;
+}
+

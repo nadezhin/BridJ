@@ -115,6 +115,8 @@ public class StructByValueTest {
     public static native long sum(S_jlong10 s);
     public static native double sup_b(S_bare_interval x);
     public static native double sup_d(S_decorated_interval x);
+    public static native S_bare_interval neg_b(S_bare_interval x);
+    public static native S_decorated_interval neg_d(S_decorated_interval x);
 	
 //    @Test
 //    public void testSimpleStruct() {
@@ -210,5 +212,35 @@ public class StructByValueTest {
         x.dec = COM;
         BridJ.writeToNative(x);
         assertEquals(x.sup, sup_d(x), 0.0);
+    }
+    
+    @Test
+    public void testNeg_b() {
+        if (!BridJ.Switch.StructsByValue.enabled)
+            return;
+        
+        S_bare_interval x = new S_bare_interval();
+        x.inf = 5.0;
+        x.sup = 6.0;
+        BridJ.writeToNative(x);
+        S_bare_interval r = neg_b(x);
+        assertEquals(-x.sup, r.inf, 0.0);
+        assertEquals(-x.inf, r.sup, 0.0);
+    }
+    
+    @Test
+    public void testNeg_d() {
+        if (!BridJ.Switch.StructsByValue.enabled)
+            return;
+        
+        S_decorated_interval x = new S_decorated_interval();
+        x.inf = 5.0;
+        x.sup = 6.0;
+        x.dec = COM;
+        BridJ.writeToNative(x);
+        S_decorated_interval r = neg_d(x);
+        assertEquals(-x.sup, r.inf, 0.0);
+        assertEquals(-x.inf, r.sup, 0.0);
+        assertEquals(COM, r.dec);
     }
 }

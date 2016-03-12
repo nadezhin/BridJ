@@ -1,17 +1,316 @@
+diff -r 33c333ec5ad2 dyncall/dyncall.h
+--- a/dyncall/dyncall.h	Sun Mar 06 23:30:44 2016 +0100
++++ b/dyncall/dyncall.h	Sat Mar 12 10:54:27 2016 +0300
+@@ -97,6 +97,8 @@
+ 
+ DC_API void       dcMode          (DCCallVM* vm, DCint mode);
+ 
++DC_API void       dcRetStruct     (DCCallVM* vm, DCstruct* s, DCpointer returnValue);
++
+ DC_API void       dcArgBool       (DCCallVM* vm, DCbool     value);
+ DC_API void       dcArgChar       (DCCallVM* vm, DCchar     value);
+ DC_API void       dcArgShort      (DCCallVM* vm, DCshort    value);
+@@ -118,7 +120,7 @@
+ DC_API DCfloat    dcCallFloat     (DCCallVM* vm, DCpointer funcptr);
+ DC_API DCdouble   dcCallDouble    (DCCallVM* vm, DCpointer funcptr);
+ DC_API DCpointer  dcCallPointer   (DCCallVM* vm, DCpointer funcptr);
+-DC_API void       dcCallStruct    (DCCallVM* vm, DCpointer funcptr, DCstruct* s, DCpointer returnValue);
++DC_API void       dcCallStruct    (DCCallVM* vm, DCpointer funcptr);
+ 
+ DC_API DCint      dcGetError      (DCCallVM* vm);
+ 
+diff -r 33c333ec5ad2 dyncall/dyncall_api.c
+--- a/dyncall/dyncall_api.c	Sun Mar 06 23:30:44 2016 +0100
++++ b/dyncall/dyncall_api.c	Sat Mar 12 10:54:27 2016 +0300
+@@ -46,6 +46,11 @@
+    * a dcMode(callvm, DC_CALL_C_ELLIPSIS_VARARGS) */
+ }
+ 
++void dcRetStruct(DCCallVM* vm, DCstruct* s, DCpointer x) 
++{ 
++  vm->mVTpointer->retStruct(vm, s, x); 
++}
++
+ void dcArgBool(DCCallVM* vm,DCbool x) 
+ { 
+   vm->mVTpointer->argBool(vm, x); 
+@@ -147,9 +152,9 @@
+   return vm->mVTpointer->callPointer(vm, funcptr); 
+ }
+ 
+-void dcCallStruct(DCCallVM* vm, DCpointer funcptr, DCstruct* s, DCpointer x) 
++void dcCallStruct(DCCallVM* vm, DCpointer funcptr) 
+ { 
+-  vm->mVTpointer->callStruct(vm, funcptr, s, x); 
++  vm->mVTpointer->callStruct(vm, funcptr); 
+ }
+ 
+ DCint dcGetError(DCCallVM *vm)
+diff -r 33c333ec5ad2 dyncall/dyncall_callvm.h
+--- a/dyncall/dyncall_callvm.h	Sun Mar 06 23:30:44 2016 +0100
++++ b/dyncall/dyncall_callvm.h	Sat Mar 12 10:54:27 2016 +0300
+@@ -47,6 +47,7 @@
+   void         (*free)           (DCCallVM* vm);
+   void         (*reset)          (DCCallVM* vm);
+   void         (*mode)           (DCCallVM* vm,DCint        mode);
++  void         (*retStruct)      (DCCallVM* vm,DCstruct* s, DCpointer returnValue);
+   void         (*argBool)        (DCCallVM* vm,DCbool          B);
+   void         (*argChar)        (DCCallVM* vm,DCchar          c);
+   void         (*argShort)       (DCCallVM* vm,DCshort         s);
+@@ -67,7 +68,7 @@
+   DCfloat      (*callFloat)      (DCCallVM* vm,DCpointer funcptr);
+   DCdouble     (*callDouble)     (DCCallVM* vm,DCpointer funcptr);
+   DCpointer    (*callPointer)    (DCCallVM* vm,DCpointer funcptr);
+-  void         (*callStruct)     (DCCallVM* vm,DCpointer funcptr,DCstruct* s, DCpointer returnValue);
++  void         (*callStruct)     (DCCallVM* vm,DCpointer funcptr);
+ };
+ 
+ typedef DCvoid       (DCvoidvmfunc)      (DCCallVM* vm,DCpointer funcptr); 
+diff -r 33c333ec5ad2 dyncall/dyncall_callvm_arm32_arm.c
+--- a/dyncall/dyncall_callvm_arm32_arm.c	Sun Mar 06 23:30:44 2016 +0100
++++ b/dyncall/dyncall_callvm_arm32_arm.c	Sat Mar 12 10:54:27 2016 +0300
+@@ -158,6 +158,7 @@
+   &dc_callvm_free_arm32_arm
+ , &dc_callvm_reset_arm32_arm
+ , &dc_callvm_mode_arm32_arm
++, NULL /* retStruct */
+ , &dc_callvm_argBool_arm32_arm
+ , &dc_callvm_argChar_arm32_arm
+ , &dc_callvm_argShort_arm32_arm 
+@@ -187,6 +188,7 @@
+   &dc_callvm_free_arm32_arm
+ , &dc_callvm_reset_arm32_arm
+ , &dc_callvm_mode_arm32_arm
++, NULL /* retStruct */
+ , &dc_callvm_argBool_arm32_arm
+ , &dc_callvm_argChar_arm32_arm
+ , &dc_callvm_argShort_arm32_arm 
+diff -r 33c333ec5ad2 dyncall/dyncall_callvm_arm64.c
+--- a/dyncall/dyncall_callvm_arm64.c	Sun Mar 06 23:30:44 2016 +0100
++++ b/dyncall/dyncall_callvm_arm64.c	Sat Mar 12 10:54:27 2016 +0300
+@@ -117,6 +117,7 @@
+   &deinit
+ , &reset
+ , &mode
++, NULL /* retStruct */
+ , &a_bool
+ , &a_char
+ , &a_short 
+diff -r 33c333ec5ad2 dyncall/dyncall_callvm_mips_eabi.c
+--- a/dyncall/dyncall_callvm_mips_eabi.c	Sun Mar 06 23:30:44 2016 +0100
++++ b/dyncall/dyncall_callvm_mips_eabi.c	Sat Mar 12 10:54:27 2016 +0300
+@@ -147,6 +147,7 @@
+   &dc_callvm_free_mips_eabi
+ , &dc_callvm_reset_mips_eabi
+ , &dc_callvm_mode_mips_eabi
++, NULL /* retStruct */
+ , &dc_callvm_argBool_mips_eabi
+ , &dc_callvm_argChar_mips_eabi
+ , &dc_callvm_argShort_mips_eabi 
+diff -r 33c333ec5ad2 dyncall/dyncall_callvm_mips_n32.c
+--- a/dyncall/dyncall_callvm_mips_n32.c	Sun Mar 06 23:30:44 2016 +0100
++++ b/dyncall/dyncall_callvm_mips_n32.c	Sat Mar 12 10:54:27 2016 +0300
+@@ -185,6 +185,7 @@
+   &dc_callvm_free_mips_n32
+ , &dc_callvm_reset_mips_n32
+ , &dc_callvm_mode_mips_n32
++, NULL /* retStruct */
+ , &dc_callvm_argBool_mips_n32
+ , &dc_callvm_argChar_mips_n32
+ , &dc_callvm_argShort_mips_n32 
+@@ -213,6 +214,7 @@
+   &dc_callvm_free_mips_n32
+ , &dc_callvm_reset_mips_n32
+ , &dc_callvm_mode_mips_n32
++, NULL /* retStruct */
+ , &dc_callvm_argBool_mips_n32
+ , &dc_callvm_argChar_mips_n32
+ , &dc_callvm_argShort_mips_n32
+diff -r 33c333ec5ad2 dyncall/dyncall_callvm_mips_n64.c
+--- a/dyncall/dyncall_callvm_mips_n64.c	Sun Mar 06 23:30:44 2016 +0100
++++ b/dyncall/dyncall_callvm_mips_n64.c	Sat Mar 12 10:54:27 2016 +0300
+@@ -185,6 +185,7 @@
+   &dc_callvm_free_mips_n64
+ , &dc_callvm_reset_mips_n64
+ , &dc_callvm_mode_mips_n64
++, NULL /* retStruct */
+ , &dc_callvm_argBool_mips_n64
+ , &dc_callvm_argChar_mips_n64
+ , &dc_callvm_argShort_mips_n64 
+@@ -213,6 +214,7 @@
+   &dc_callvm_free_mips_n64
+ , &dc_callvm_reset_mips_n64
+ , &dc_callvm_mode_mips_n64
++, NULL /* retStruct */
+ , &dc_callvm_argBool_mips_n64
+ , &dc_callvm_argChar_mips_n64
+ , &dc_callvm_argShort_mips_n64
+diff -r 33c333ec5ad2 dyncall/dyncall_callvm_mips_o32.c
+--- a/dyncall/dyncall_callvm_mips_o32.c	Sun Mar 06 23:30:44 2016 +0100
++++ b/dyncall/dyncall_callvm_mips_o32.c	Sat Mar 12 10:54:27 2016 +0300
+@@ -200,6 +200,7 @@
+   &dc_callvm_free_mips_o32
+ , &dc_callvm_reset_mips_o32
+ , &dc_callvm_mode_mips_o32
++, NULL /* retStruct */
+ , &dc_callvm_argBool_mips_o32
+ , &dc_callvm_argChar_mips_o32
+ , &dc_callvm_argShort_mips_o32 
+diff -r 33c333ec5ad2 dyncall/dyncall_callvm_ppc32.c
+--- a/dyncall/dyncall_callvm_ppc32.c	Sun Mar 06 23:30:44 2016 +0100
++++ b/dyncall/dyncall_callvm_ppc32.c	Sat Mar 12 10:54:27 2016 +0300
+@@ -282,6 +282,7 @@
+   &dc_callvm_free_ppc32
+ , &dc_callvm_reset_ppc32
+ , &dc_callvm_mode_ppc32
++, NULL /* retStruct */
+ , &dc_callvm_argBool_ppc32
+ , &dc_callvm_argChar_ppc32
+ , &dc_callvm_argShort_ppc32 
+@@ -310,6 +311,7 @@
+   &dc_callvm_free_ppc32
+ , &dc_callvm_reset_ppc32
+ , &dc_callvm_mode_ppc32
++, NULL /* retStruct */
+ , &dc_callvm_argBool_ppc32
+ , &dc_callvm_argChar_ppc32
+ , &dc_callvm_argShort_ppc32 
+@@ -338,6 +340,7 @@
+   &dc_callvm_free_ppc32
+ , &dc_callvm_reset_ppc32
+ , &dc_callvm_mode_ppc32
++, NULL /* retStruct */
+ , &dc_callvm_argBool_ppc32
+ , &dc_callvm_argChar_ppc32
+ , &dc_callvm_argShort_ppc32 
+diff -r 33c333ec5ad2 dyncall/dyncall_callvm_ppc64.c
+--- a/dyncall/dyncall_callvm_ppc64.c	Sun Mar 06 23:30:44 2016 +0100
++++ b/dyncall/dyncall_callvm_ppc64.c	Sat Mar 12 10:54:27 2016 +0300
+@@ -224,6 +224,7 @@
+   &dc_callvm_free_ppc64
+ , &dc_callvm_reset_ppc64
+ , &dc_callvm_mode_ppc64
++, NULL /* retStruct */
+ , &dc_callvm_argBool_ppc64
+ , &dc_callvm_argChar_ppc64
+ , &dc_callvm_argShort_ppc64
+@@ -253,6 +254,7 @@
+   &dc_callvm_free_ppc64
+ , &dc_callvm_reset_ppc64
+ , &dc_callvm_mode_ppc64
++, NULL /* retStruct */
+ , &dc_callvm_argBool_ppc64
+ , &dc_callvm_argChar_ppc64
+ , &dc_callvm_argShort_ppc64
+@@ -282,6 +284,7 @@
+   &dc_callvm_free_ppc64
+ , &dc_callvm_reset_ppc64
+ , &dc_callvm_mode_ppc64
++, NULL /* retStruct */
+ , &dc_callvm_argBool_ppc64
+ , &dc_callvm_argChar_ppc64
+ , &dc_callvm_argShort_ppc64
+diff -r 33c333ec5ad2 dyncall/dyncall_callvm_sparc.c
+--- a/dyncall/dyncall_callvm_sparc.c	Sun Mar 06 23:30:44 2016 +0100
++++ b/dyncall/dyncall_callvm_sparc.c	Sat Mar 12 10:54:27 2016 +0300
+@@ -125,6 +125,7 @@
+   &dc_callvm_free_sparc, 
+   &dc_callvm_reset_sparc, 
+   &dc_callvm_mode_sparc, 
++  NULL /* retStruct */,
+   &dc_callvm_argBool_sparc, 
+   &dc_callvm_argChar_sparc, 
+   &dc_callvm_argShort_sparc, 
+diff -r 33c333ec5ad2 dyncall/dyncall_callvm_sparc64.c
+--- a/dyncall/dyncall_callvm_sparc64.c	Sun Mar 06 23:30:44 2016 +0100
++++ b/dyncall/dyncall_callvm_sparc64.c	Sat Mar 12 10:54:27 2016 +0300
+@@ -145,6 +145,7 @@
+   &dc_callvm_free_sparc64, 
+   &dc_callvm_reset_sparc64, 
+   &dc_callvm_mode_sparc64, 
++  NULL /* retStruct */,
+   &dc_callvm_argBool_sparc64, 
+   &dc_callvm_argChar_sparc64, 
+   &dc_callvm_argShort_sparc64, 
+@@ -174,6 +175,7 @@
+   &dc_callvm_free_sparc64, 
+   &dc_callvm_reset_sparc64, 
+   &dc_callvm_mode_sparc64, 
++  NULL /* retStruct */,
+   &dc_callvm_argBool_sparc64, 
+   &dc_callvm_argChar_sparc64, 
+   &dc_callvm_argShort_sparc64, 
+diff -r 33c333ec5ad2 dyncall/dyncall_callvm_sparc_v9.c
+--- a/dyncall/dyncall_callvm_sparc_v9.c	Sun Mar 06 23:30:44 2016 +0100
++++ b/dyncall/dyncall_callvm_sparc_v9.c	Sat Mar 12 10:54:27 2016 +0300
+@@ -103,6 +103,7 @@
+   &dc_callvm_free_v9, 
+   &dc_callvm_reset_v9, 
+   &dc_callvm_mode_v9, 
++  NULL /* retStruct */,
+   &dc_callvm_argBool_v9, 
+   &dc_callvm_argChar_v9, 
+   &dc_callvm_argShort_v9, 
+@@ -132,6 +133,7 @@
+   &dc_callvm_free_v9, 
+   &dc_callvm_reset_v9, 
+   &dc_callvm_mode_v9, 
++  NULL /* retStruct */,
+   &dc_callvm_argBool_v9, 
+   &dc_callvm_argChar_v9, 
+   &dc_callvm_argShort_v9, 
 diff -r 33c333ec5ad2 dyncall/dyncall_callvm_x64.c
 --- a/dyncall/dyncall_callvm_x64.c	Sun Mar 06 23:30:44 2016 +0100
-+++ b/dyncall/dyncall_callvm_x64.c	Thu Mar 10 14:49:05 2016 +0300
-@@ -31,7 +31,9 @@
++++ b/dyncall/dyncall_callvm_x64.c	Sat Mar 12 10:54:27 2016 +0300
+@@ -31,7 +31,11 @@
  
  #include "dyncall_callvm_x64.h"
  #include "dyncall_alloc.h"
 +#include "dyncall_signature.h"
  #include "dyncall_struct.h"
 +#include <string.h>
++
++#define DC_UNIX_MEM_STRUCT_SIZE 16
  
  static DCCallVM* dc_callvm_new_x64(DCCallVM_vt* vt, DCsize size)
  {
-@@ -156,8 +158,66 @@
+@@ -47,6 +51,10 @@
+   self->mRegCount.i = self->mRegCount.f =  0;
+ 
+   dcVecInit(&self->mVecHead, size);
++#if defined(DC_UNUX)
++  self->mRetStruct = NULL;
++  self->mRetMem = NULL;
++#endif
+   return (DCCallVM*)self;
+ }
+ 
+@@ -77,7 +85,6 @@
+   }
+ }
+ 
+-
+ static void dc_callvm_argLongLong_x64(DCCallVM* in_self, DClonglong x)
+ {
+   /* A long long always has 64 bits on the supported x64 platforms (lp64 on unix and llp64 on windows). */
+@@ -88,6 +95,16 @@
+     dcVecAppend(&self->mVecHead, &x, sizeof(DClonglong));
+ }
+ 
++#if defined(DC_UNIX)
++static void dc_callvm_retStruct_x64(DCCallVM* in_self, DCstruct* s, DCpointer x)
++{
++  DCCallVM_x64* self = (DCCallVM_x64*)in_self;
++  self->mRetStruct = s;
++  self->mRetMem = x;
++  if (s->size > DC_UNIX_MEM_STRUCT_SIZE)
++    dc_callvm_argLongLong_x64(in_self, (DClonglong)x);
++}
++#endif
+ 
+ static void dc_callvm_argBool_x64(DCCallVM* in_self, DCbool x)
+ {
+@@ -156,8 +173,66 @@
      dcVecAppend(&self->mVecHead, &x, sizeof(DCpointer));
  }
  
@@ -45,9 +344,9 @@ diff -r 33c333ec5ad2 dyncall/dyncall_callvm_x64.c
 +  DCsize i, bitmask;
 +  DCCallVM_x64* self = (DCCallVM_x64*)in_self;
 +  /*printf("dc_callvm_argStruct_x64 size = %d\n", (int)s->size);@@@*/
-+  if (s->size > 16) {
++  if (s->size > DC_UNIX_MEM_STRUCT_SIZE) {
 +    dcVecAppend(&self->mVecHead, x, s->size);
-+    self->mVecHead.mSize = (self->mVecHead.mSize + 7) & -8; // align to octobyte
++    dcVecAlign(&self->mVecHead, sizeof(DClonglong));
 +    return;
 +  }
 +  
@@ -78,7 +377,7 @@ diff -r 33c333ec5ad2 dyncall/dyncall_callvm_x64.c
    DCCallVM_x64* self = (DCCallVM_x64*)in_self;
    dcVecAppend(&self->mVecHead, x, s->size);
    /*printf("dc_callvm_argStruct_x64 size = %d\n", (int)s->size);@@@*/
-@@ -167,7 +227,6 @@
+@@ -167,7 +242,6 @@
    /*	  dcVecAppend(&self->mVecHead, &x, sizeof(DCpointer));@@@*/
  }
  
@@ -86,9 +385,163 @@ diff -r 33c333ec5ad2 dyncall/dyncall_callvm_x64.c
  /* Call. */
  void dc_callvm_call_x64(DCCallVM* in_self, DCpointer target)
  {
+@@ -187,12 +261,60 @@
+   );
+ }
+ 
++struct STRUCT_FF { DCdouble f0; DCdouble f1; };
++struct STRUCT_FI { DCdouble f0; DClonglong f1; };
++struct STRUCT_IF { DClonglong f0; DCdouble f1; };
++struct STRUCT_II { DClonglong f0; DClonglong f1; };
++
++typedef struct STRUCT_FF (DCstructFFfunc)   (DCCallVM* vm,DCpointer funcptr);
++typedef struct STRUCT_FI (DCstructFIfunc)   (DCCallVM* vm,DCpointer funcptr);
++typedef struct STRUCT_IF (DCstructIFfunc)   (DCCallVM* vm,DCpointer funcptr);
++typedef struct STRUCT_II (DCstructIIfunc)   (DCCallVM* vm,DCpointer funcptr);
++
++#if defined(DC_UNIX)
++static void dc_callvm_callStruct_x64(DCCallVM* in_self, DCpointer target)
++{
++  DCsize bitmask;
++  DCCallVM_x64* self = (DCCallVM_x64*)in_self;
++  if (self->mRetStruct->size > DC_UNIX_MEM_STRUCT_SIZE) {
++    dc_callvm_call_x64(in_self, target);
++    return;
++  }
++  bitmask = classify_struct_x64(self->mRetStruct);
++  if ((bitmask & 0xff) != 0) {
++    if ((bitmask & 0xff00) != 0) {
++      DCstructIIfunc* fun = ((DCstructIIfunc*)&dc_callvm_call_x64);
++      struct STRUCT_II ret = (*fun)(in_self, target);
++      memcpy(self->mRetMem, &ret, self->mRetStruct->size);
++    } else {
++      DCstructIFfunc* fun = ((DCstructIFfunc*)&dc_callvm_call_x64);
++      struct STRUCT_IF ret = (*fun)(in_self, target);
++      memcpy(self->mRetMem, &ret, self->mRetStruct->size);
++    }
++  } else {
++    if ((bitmask & 0xff00) != 0) {
++      DCstructFIfunc* fun = ((DCstructFIfunc*)&dc_callvm_call_x64);
++      struct STRUCT_FI ret = (*fun)(in_self, target);
++      memcpy(self->mRetMem, &ret, self->mRetStruct->size);
++    } else {
++      DCstructFFfunc* fun = ((DCstructFFfunc*)&dc_callvm_call_x64);
++      struct STRUCT_FF ret = (*fun)(in_self, target);
++      memcpy(self->mRetMem, &ret, self->mRetStruct->size);
++    }
++  }
++}
++#endif
+ 
+ DCCallVM_vt gVT_x64 =
+ {
+   &dc_callvm_free_x64
+ , &dc_callvm_reset_x64
+ , &dc_callvm_mode_x64
++#if defined(DC_UNIX)
++, dc_callvm_retStruct_x64
++#else
++, NULL /* retStruct */
++#endif
+ , &dc_callvm_argBool_x64
+ , &dc_callvm_argChar_x64
+ , &dc_callvm_argShort_x64 
+@@ -213,7 +335,11 @@
+ , (DCfloatvmfunc*)      &dc_callvm_call_x64
+ , (DCdoublevmfunc*)     &dc_callvm_call_x64
+ , (DCpointervmfunc*)    &dc_callvm_call_x64
++#if defined(DC_UNIX)
++, dc_callvm_callStruct_x64
++#else
+ , NULL /* callStruct */
++#endif
+ };
+ 
+ 
+diff -r 33c333ec5ad2 dyncall/dyncall_callvm_x64.h
+--- a/dyncall/dyncall_callvm_x64.h	Sun Mar 06 23:30:44 2016 +0100
++++ b/dyncall/dyncall_callvm_x64.h	Sat Mar 12 10:54:27 2016 +0300
+@@ -102,6 +102,10 @@
+   DCpointer      mpCallFunc;  /* Function to call.                                       */
+   DCRegCount_x64 mRegCount;   /* Number of int/sse registers used for parameter passing. */
+   DCRegData_x64  mRegData;    /* Parameters to be passed via registers.                  */
++#if defined(DC_UNIX) 
++  DCstruct*      mRetStruct;  /* Type of return structure.                               */
++  DCpointer      mRetMem;     /* Memory for return structure.                            */
++#endif
+   DCVecHead      mVecHead;    /* Parameters to be pushed onto stack.                     */
+ } DCCallVM_x64;
+ 
+diff -r 33c333ec5ad2 dyncall/dyncall_callvm_x86.c
+--- a/dyncall/dyncall_callvm_x86.c	Sun Mar 06 23:30:44 2016 +0100
++++ b/dyncall/dyncall_callvm_x86.c	Sat Mar 12 10:54:27 2016 +0300
+@@ -163,6 +163,7 @@
+   &dc_callvm_free_x86
+ , &dc_callvm_reset_x86
+ , &dc_callvm_mode_x86
++, NULL /* retStruct */
+ , &dc_callvm_argBool_x86
+ , &dc_callvm_argChar_x86
+ , &dc_callvm_argShort_x86 
+@@ -208,6 +209,7 @@
+   &dc_callvm_free_x86
+ , &dc_callvm_reset_x86
+ , &dc_callvm_mode_x86
++, NULL /* retStruct */
+ , &dc_callvm_argBool_x86
+ , &dc_callvm_argChar_x86
+ , &dc_callvm_argShort_x86 
+@@ -255,6 +257,7 @@
+   &dc_callvm_free_x86
+ , &dc_callvm_reset_x86
+ , &dc_callvm_mode_x86
++, NULL /* retStruct */
+ , &dc_callvm_argBool_x86
+ , &dc_callvm_argChar_x86
+ , &dc_callvm_argShort_x86
+@@ -366,6 +369,7 @@
+   &dc_callvm_free_x86
+ , &dc_callvm_reset_x86_win32_fast
+ , &dc_callvm_mode_x86
++, NULL /* retStruct */
+ , &dc_callvm_argBool_x86_win32_fast_ms
+ , &dc_callvm_argChar_x86_win32_fast_ms
+ , &dc_callvm_argShort_x86_win32_fast_ms
+@@ -464,6 +468,7 @@
+   &dc_callvm_free_x86
+ , &dc_callvm_reset_x86_win32_fast
+ , &dc_callvm_mode_x86
++, NULL /* retStruct */
+ , &dc_callvm_argBool_x86_win32_fast_gnu
+ , &dc_callvm_argChar_x86_win32_fast_gnu
+ , &dc_callvm_argShort_x86_win32_fast_gnu
+@@ -509,6 +514,7 @@
+   &dc_callvm_free_x86
+ , &dc_callvm_reset_x86
+ , &dc_callvm_mode_x86
++, NULL /* retStruct */
+ , &dc_callvm_argBool_x86
+ , &dc_callvm_argChar_x86
+ , &dc_callvm_argShort_x86
+@@ -553,6 +559,7 @@
+   &dc_callvm_free_x86
+ , &dc_callvm_reset_x86
+ , &dc_callvm_mode_x86
++, NULL /* retStruct */
+ , &dc_callvm_argBool_x86
+ , &dc_callvm_argChar_x86
+ , &dc_callvm_argShort_x86
+@@ -581,6 +588,7 @@
+   &dc_callvm_free_x86
+ , &dc_callvm_reset_x86
+ , &dc_callvm_mode_x86
++, NULL /* retStruct */
+ , &dc_callvm_argBool_x86
+ , &dc_callvm_argChar_x86
+ , &dc_callvm_argShort_x86
 diff -r 33c333ec5ad2 dyncall/dyncall_struct.c
 --- a/dyncall/dyncall_struct.c	Sun Mar 06 23:30:44 2016 +0100
-+++ b/dyncall/dyncall_struct.c	Thu Mar 10 14:49:05 2016 +0300
++++ b/dyncall/dyncall_struct.c	Sat Mar 12 10:54:27 2016 +0300
 @@ -130,6 +130,7 @@
  	for (i = 0; i < s->fieldCount; i++) {
  		DCfield *f = s->pFields + i;
@@ -99,7 +552,7 @@ diff -r 33c333ec5ad2 dyncall/dyncall_struct.c
  	dcAlign(&s->size, s->alignment);
 diff -r 33c333ec5ad2 dyncallback/dyncall_args.h
 --- a/dyncallback/dyncall_args.h	Sun Mar 06 23:30:44 2016 +0100
-+++ b/dyncallback/dyncall_args.h	Thu Mar 10 14:49:05 2016 +0300
++++ b/dyncallback/dyncall_args.h	Sat Mar 12 10:54:27 2016 +0300
 @@ -58,6 +58,7 @@
  DC_API DCfloat     dcbArgFloat    (DCArgs*);
  DC_API DCdouble    dcbArgDouble   (DCArgs*);
@@ -110,7 +563,7 @@ diff -r 33c333ec5ad2 dyncallback/dyncall_args.h
  }
 diff -r 33c333ec5ad2 dyncallback/dyncall_args_x64.c
 --- a/dyncallback/dyncall_args_x64.c	Sun Mar 06 23:30:44 2016 +0100
-+++ b/dyncallback/dyncall_args_x64.c	Thu Mar 10 14:49:05 2016 +0300
++++ b/dyncallback/dyncall_args_x64.c	Sat Mar 12 10:54:27 2016 +0300
 @@ -26,6 +26,8 @@
  
  
@@ -138,7 +591,7 @@ diff -r 33c333ec5ad2 dyncallback/dyncall_args_x64.c
  DCfloat     dcbArgFloat    (DCArgs* p) { return *(float*)arg_f64(p); }
 diff -r 33c333ec5ad2 dynload/dynload_syms_mach-o.c
 --- a/dynload/dynload_syms_mach-o.c	Sun Mar 06 23:30:44 2016 +0100
-+++ b/dynload/dynload_syms_mach-o.c	Thu Mar 10 14:49:05 2016 +0300
++++ b/dynload/dynload_syms_mach-o.c	Sat Mar 12 10:54:27 2016 +0300
 @@ -29,6 +29,7 @@
   dynamic symbol resolver for Mach-O
  
@@ -438,7 +891,7 @@ diff -r 33c333ec5ad2 dynload/dynload_syms_mach-o.c
  		return NULL;
 diff -r 33c333ec5ad2 dynload/dynload_unix.c
 --- a/dynload/dynload_unix.c	Sun Mar 06 23:30:44 2016 +0100
-+++ b/dynload/dynload_unix.c	Thu Mar 10 14:49:05 2016 +0300
++++ b/dynload/dynload_unix.c	Sat Mar 12 10:54:27 2016 +0300
 @@ -41,7 +41,7 @@
  
  DLLib* dlLoadLibrary(const char* libPath)
@@ -450,7 +903,7 @@ diff -r 33c333ec5ad2 dynload/dynload_unix.c
  
 diff -r 33c333ec5ad2 dynload/dynload_windows.c
 --- a/dynload/dynload_windows.c	Sun Mar 06 23:30:44 2016 +0100
-+++ b/dynload/dynload_windows.c	Thu Mar 10 14:49:05 2016 +0300
++++ b/dynload/dynload_windows.c	Sat Mar 12 10:54:27 2016 +0300
 @@ -41,7 +41,9 @@
  DLLib* dlLoadLibrary(const char* libPath)
  {
